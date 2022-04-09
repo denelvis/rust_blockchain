@@ -1,0 +1,3 @@
+mod blockchain;
+
+fn main() {}
