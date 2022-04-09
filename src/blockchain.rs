@@ -1,11 +1,12 @@
 extern crate serde;
 extern crate serde_json;
 extern crate sha2;
-extern crate time;
+// extern crate time;
 
 use serde_derive::Serialize;
 use sha2::{Digest, Sha256};
 use std::fmt::Write;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Serialize)]
 struct Transaction {
@@ -16,7 +17,7 @@ struct Transaction {
 
 #[derive(Debug, Serialize)]
 pub struct Blockheader {
-    timestamp: i64,
+    timestamp: u64,
     nonce: u32,
     pre_hash: String,
     merkle: String,
@@ -81,7 +82,10 @@ impl Chain {
 
     pub fn generate_new_block(&mut self) -> bool {
         let header = Blockheader {
-            timestamp: time::now().to_timespec().sec,
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Failed!")
+                .as_secs(), //time::now().to_timespec().sec,
             nonce: 0,
             pre_hash: self.last_hash(),
             merkle: String::new(),
@@ -90,7 +94,7 @@ impl Chain {
 
         let reward_trans = Transaction {
             sender: String::from("Root"),
-            reciever: self.miner_addr,
+            reciever: self.miner_addr.clone(),
             amount: self.reward,
         };
 
@@ -106,7 +110,7 @@ impl Chain {
         block.header.merkle = Chain::get_merkle(block.transactions.clone());
         Chain::proof_of_work(&mut block.header);
 
-        println!("{:?}", &block);
+        println!("{:#?}", &block);
         self.chain.push(block);
         true
     }
@@ -126,7 +130,7 @@ impl Chain {
         while merkle.len() > 1 {
             let mut h1 = merkle.remove(0);
             let mut h2 = merkle.remove(0);
-            h1.push(&mut h2);
+            h1.push_str(&mut h2);
             let nh = Chain::hash(&h1);
             merkle.push(nh);
         }
@@ -159,9 +163,9 @@ impl Chain {
     pub fn hash<T: serde::Serialize>(item: &T) -> String {
         let input = serde_json::to_string(&item).unwrap();
         let mut hasher = Sha256::default();
-        hasher.input(input.as_bytes());
-        let res = hasher.result();
-        let vec_res = res.to_vec():
+        hasher.update(input.as_bytes());
+        let res = hasher.finalize();
+        let vec_res = res.to_vec();
 
         Chain::hex_to_string(vec_res.as_slice())
     }
